@@ -2,9 +2,9 @@ from pythonping import ping
 from colorama import Fore, init
 from datetime import datetime
 import argparse
-import ipaddress
+import netaddr
 import re
-from concurrent import futures
+import threading
 import json
 import csv as cs
 
@@ -16,7 +16,7 @@ bitacora = {}
 
 
 def parseo_argumentos():
-    parser = argparse.ArgumentParser("BETA-1.0 verificación de vida de hosts por icmp")
+    parser = argparse.ArgumentParser("ALFA-1.0 verificación de vida de hosts por icmp")
     parser.add_argument('-v', '--verbose', help='Despliega mensajes de error e informativos',
                         action='store_true', default=False, required=False)
     parser.add_argument('-iH', '--inputHosts', help='Establece los host a escanear en una cadena de texto',
@@ -51,19 +51,16 @@ def validar_ip(ips):
     try:
         # Se valida la Sub-Red
         if "/" in ips:
-            subred = ipaddress.ip_network(ips, strict=False)
-            for host in subred.hosts():
+            subret = netaddr.IPNetwork(ips)
+            for host in subret:
                 ips_global.append(str(host))
         # Se valida rango de ip
         elif "-" in ips:
             if re.match(range_pattern, ips):
                 temp_ip = ips.split("-")
-                for subnets in ipaddress.summarize_address_range(ipaddress.IPv4Address(temp_ip[0]),
-                                                                 ipaddress.IPv4Address(temp_ip[1])):
-                    for host in subnets.hosts():
-                        ips_global.append(str(host))
-                ips_global.append(str(temp_ip[0]))
-                ips_global.append(str(temp_ip[1]))
+                ip_list = list(netaddr.IPRange(temp_ip[0], temp_ip[1]))
+                for ip in ip_list:
+                    ips_global.append(str(ip))
             # Se valida el Hostname
         elif re.match(letter_pattern, ips):
             if re.match(hostname_pattern, ips):
@@ -72,10 +69,8 @@ def validar_ip(ips):
                 print(Fore.RED + "Hostname invalido: " + ips)
         # Se valida un hostname en concreto
         else:
-            ips_global.append(str(ipaddress.ip_address(ips)))
+            ips_global.append(str(netaddr.IPAddress(ips)))
     # Errores y excepciones posibles
-    except ValueError:
-        print(Fore.RED + "IP o Sub-Red invalida verifica que el valor exista: " + ips)
     except:
         print(Fore.RED + "Ip, Sub-Red o Hostname no Valido : " + ips)
 
@@ -126,13 +121,15 @@ def guardar_datos():
 
 if __name__ == "__main__":
     parseo_argumentos()
-    # Hacer PING
-    ex = futures.ThreadPoolExecutor(max_workers=conf.threats)
-    imprimir_mensaje("Hilos de ejecución creados")
     threads = []
     for ip in ips_global:
-        threads.append(ex.submit(make_ping, ip))
-    for r in futures.as_completed(threads):
-        imprimir_mensaje('Host Terminado {} '.format(r.result()))
-    # Guardar output
+        threads.append(threading.Thread(target=make_ping, args=(ip,)))
+    imprimir_mensaje("Hilos de ejecución creados")
+    for t in threads:
+        t.start()
+    for t in threads:
+        try:
+            t.join()
+        except Exception as ex:
+            imprimir_mensaje("Fallo en la ejecucion \n" + str(type(ex)) + "\n" + str(ex.args))
     guardar_datos()
