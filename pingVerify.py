@@ -4,7 +4,6 @@ from datetime import datetime
 import argparse
 import netaddr
 import re
-import threading
 import json
 import csv as cs
 
@@ -23,8 +22,6 @@ def parseo_argumentos():
                         type=validar_hosts, default=False, required=False)
     parser.add_argument('-oN', '--outputName', help='Establece el nombre del archivo',
                         type=str, default="Ping-" + datetime.now().strftime("%d-%b-%Y-%H.%M.%S"), required=False)
-    parser.add_argument('-t', '--threats', help='Establece el numero de hilos utilizados al realizar ping',
-                        type=int, default=10, required=False)
     parser.add_argument('-oF', '--outputFormat', help='Establece el formato de salida del archivo [NA, JSON, CSV, TXT]',
                         type=str, default="NA", required=False)
     gl_args = parser.parse_args()
@@ -121,15 +118,9 @@ def guardar_datos():
 
 if __name__ == "__main__":
     parseo_argumentos()
-    threads = []
     for ip in ips_global:
-        threads.append(threading.Thread(target=make_ping, args=(ip,)))
-    imprimir_mensaje("Hilos de ejecución creados")
-    for t in threads:
-        t.start()
-    for t in threads:
         try:
-            t.join()
+            make_ping(ip)
         except Exception as ex:
-            imprimir_mensaje("Fallo en la ejecucion \n" + str(type(ex)) + "\n" + str(ex.args))
+            imprimir_mensaje("Fallo en la ejecucion de " + str(ip) + '/n' + str(type(ex)) + "\n" + str(ex.args))
     guardar_datos()
